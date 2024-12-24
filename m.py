@@ -4,6 +4,9 @@ import openpyxl
 import os
 import hashlib
 import logging
+import threading
+import time
+import sys
 
 # مسیر فایل اکسل
 EXCEL_FILE = "data.xlsx"
@@ -124,6 +127,17 @@ async def fasly(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update, context):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
+# تابع برای ریستارت ربات
+def restart_bot():
+    print("ریستارت ربات...")
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
+# زمان‌بندی ریستارت هر 2 ساعت
+def schedule_restart():
+    while True:
+        time.sleep(1 * 60 * 60)  # 1ساعت
+        restart_bot()
+
 # تابع اصلی برای اجرای ربات
 def main():
     # ساخت برنامه
@@ -132,6 +146,9 @@ def main():
     app.add_handler(CommandHandler("fasly", fasly))
     app.add_handler(CallbackQueryHandler(button))
     app.add_error_handler(error_handler)
+
+    # اجرای نخ زمان‌بندی ریستارت
+    threading.Thread(target=schedule_restart, daemon=True).start()
 
     print("ربات با موفقیت اجرا شد.")
     app.run_polling(poll_interval=1.0)
