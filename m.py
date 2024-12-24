@@ -135,7 +135,7 @@ def restart_bot():
 # زمان‌بندی ریستارت هر 2 ساعت
 def schedule_restart():
     while True:
-        time.sleep(10 * 60)  # 10 دقیقه
+        time.sleep(5 * 60)  # 10 دقیقه
         restart_bot()
 
 # تابع اصلی برای اجرای ربات
