@@ -1,16 +1,18 @@
-from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import openpyxl
 import os
 import hashlib
 import logging
+import threading
+import time
+import sys
 
 # مسیر فایل اکسل
 EXCEL_FILE = "data.xlsx"
 
 # توکن ربات
-TOKEN = os.environ.get("BOT_TOKEN")  # توکن را از متغیر محیطی بخوانید
+TOKEN = "8027936129:AAENv_C5K6e9eEg5XZdSYL2RD7AhLgrurCc"
 
 # پیام خوشامدگویی
 WELCOME_MESSAGE = (
@@ -25,10 +27,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-logger = logging.getLogger(__name__)
-
-# سرور Flask
-app = Flask(__name__)
+logger = logging.getLogger(name)
 
 # تابع برای خواندن داده‌ها از اکسل
 def load_data():
@@ -128,21 +127,31 @@ async def fasly(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update, context):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
-# مسیر وب‌هوک
-@app.route(f"/webhook", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return "OK", 200
+# تابع برای ریستارت ربات
+def restart_bot():
+    print("ریستارت ربات...")
+    os.execl(sys.executable, sys.executable, *sys.argv)
 
-# ساخت و پیکربندی برنامه
-application = Application.builder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("fasly", fasly))
-application.add_handler(CallbackQueryHandler(button))
-application.add_error_handler(error_handler)
-application.updater = None
+# زمان‌بندی ریستارت هر 2 ساعت
+def schedule_restart():
+    while True:
+        time.sleep(5 * 60)  # 10 دقیقه
+        restart_bot()
 
-# اجرای سرور Flask
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+# تابع اصلی برای اجرای ربات
+def main():
+    # ساخت برنامه
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("fasly", fasly))
+    app.add_handler(CallbackQueryHandler(button))
+    app.add_error_handler(error_handler)
+
+    # اجرای نخ زمان‌بندی ریستارت
+    threading.Thread(target=schedule_restart, daemon=True).start()
+
+    print("ربات با موفقیت اجرا شد.")
+    app.run_polling(poll_interval=1.0)
+
+if name == "main":
+    main()
