@@ -1,12 +1,10 @@
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import openpyxl
 import os
 import hashlib
 import logging
-import threading
-import time
-import sys
 
 # مسیر فایل اکسل
 EXCEL_FILE = "data.xlsx"
@@ -28,6 +26,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+# سرور Flask
+app = Flask(__name__)
 
 # تابع برای خواندن داده‌ها از اکسل
 def load_data():
@@ -127,31 +128,24 @@ async def fasly(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update, context):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
-# تابع برای ریستارت ربات
-def restart_bot():
-    print("ریستارت ربات...")
-    os.execl(sys.executable, sys.executable, *sys.argv)
+# مسیر وب‌هوک
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return "OK", 200
 
-# زمان‌بندی ریستارت هر 2 ساعت
-def schedule_restart():
-    while True:
-        time.sleep(5 * 60)  # 10 دقیقه
-        restart_bot()
+# ساخت و پیکربندی برنامه
+application = Application.builder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("fasly", fasly))
+application.add_handler(CallbackQueryHandler(button))
+application.add_error_handler(error_handler)
 
-# تابع اصلی برای اجرای ربات
-def main():
-    # ساخت برنامه
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("fasly", fasly))
-    app.add_handler(CallbackQueryHandler(button))
-    app.add_error_handler(error_handler)
-
-    # اجرای نخ زمان‌بندی ریستارت
-    threading.Thread(target=schedule_restart, daemon=True).start()
-
-    print("ربات با موفقیت اجرا شد.")
-    app.run_polling(poll_interval=1.0)
-
+# اجرای سرور Flask
 if __name__ == "__main__":
-    main()
+    from werkzeug.middleware.dispatcher import DispatcherMiddleware
+    from werkzeug.serving import run_simple
+
+    app.wsgi_app = DispatcherMiddleware(app.wsgi_app)
+    run_simple("0.0.0.0", int(os.environ.get("PORT", 5000)), app)
