@@ -10,7 +10,7 @@ import logging
 EXCEL_FILE = "data.xlsx"
 
 # توکن ربات
-TOKEN = "8027936129:AAENv_C5K6e9eEg5XZdSYL2RD7AhLgrurCc"
+TOKEN = os.environ.get("BOT_TOKEN")  # توکن را از متغیر محیطی بخوانید
 
 # پیام خوشامدگویی
 WELCOME_MESSAGE = (
@@ -129,7 +129,7 @@ async def error_handler(update, context):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
 # مسیر وب‌هوک
-@app.route(f"/{TOKEN}", methods=["POST"])
+@app.route(f"/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.process_update(update)
@@ -141,11 +141,8 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("fasly", fasly))
 application.add_handler(CallbackQueryHandler(button))
 application.add_error_handler(error_handler)
+application.updater = None
 
 # اجرای سرور Flask
 if __name__ == "__main__":
-    from werkzeug.middleware.dispatcher import DispatcherMiddleware
-    from werkzeug.serving import run_simple
-
-    app.wsgi_app = DispatcherMiddleware(app.wsgi_app)
-    run_simple("0.0.0.0", int(os.environ.get("PORT", 5000)), app)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
