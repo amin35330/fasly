@@ -1,18 +1,6 @@
-from flask import Flask, request
-from threading import Thread
-import subprocess
-
-# ربات تلگرام و کد اصلی شما (بدون تغییر)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import openpyxl, os, hashlib, logging
-
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import openpyxl
-import os
-import hashlib
-import logging
+import openpyxl, os, hashlib, logging, time, threading, subprocess, sys
 
 # مسیر فایل اکسل
 EXCEL_FILE = "data.xlsx"
@@ -50,13 +38,16 @@ def load_data():
     wb.close()
     return data
 
-# تابع برای ذخیره داده‌ها در اکسل
+# تابع برای ذخیره داده‌ها در اکسل و انتقال انتخاب‌شده‌ها به انتها
 def save_data(data):
+    selected = [item for item in data if item[1]]  # پروژه‌های انتخاب‌شده
+    unselected = [item for item in data if not item[1]]  # پروژه‌های انتخاب‌نشده
+    sorted_data = unselected + selected  # انتقال انتخاب‌شده‌ها به انتهای لیست
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Projects"
     ws.append(["Project", "Users"])
-    for project, users in data:
+    for project, users in sorted_data:
         ws.append([project, users])
     wb.save(EXCEL_FILE)
 
@@ -110,8 +101,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, (project, users) in enumerate(data):
         if generate_safe_callback_data(project) == project_clicked:
             users_list = set(users.split(", ")) if users else set()
-            users_list.add(user)
-            data[i] = (project, ", ".join(users_list))
+            if user in users_list:
+                users_list.remove(user)
+            else:
+                users_list.add(user)
+            data[i] = (project, ", ".join(users_list) if users_list else None)
             break
 
     save_data(data)
@@ -139,18 +133,15 @@ def main():
     logger.info("ربات با موفقیت اجرا شد.")
     app.run_polling(poll_interval=1.0)
 
+# تابع برای ریستارت هر دو دقیقه
+def restart_every_two_minutes():
+    while True:
+        time.sleep(120)  # دو دقیقه
+        logger.info("ریستارت خودکار فرآیند...")
+        subprocess.Popen([sys.executable, os.path.abspath(__file__)])  # استفاده از مسیر کامل فایل و نسخه فعلی پایتون
+        os._exit(0)  # بستن فرآیند فعلی
+
 if __name__ == "__main__":
+    restart_thread = threading.Thread(target=restart_every_two_minutes, daemon=True)
+    restart_thread.start()
     main()
-
-# ایجاد برنامه Flask
-app = Flask(__name__)
-
-@app.route("/runbot", methods=["GET"])
-def run_bot():
-    """اجرای ربات تلگرام"""
-    thread = Thread(target=main)  # اجرای ربات در یک ترد جدید
-    thread.start()
-    return "Bot script is running!", 200
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
