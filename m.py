@@ -1,12 +1,18 @@
+from flask import Flask, request
+from threading import Thread
+import subprocess
+
+# ربات تلگرام و کد اصلی شما (بدون تغییر)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import openpyxl, os, hashlib, logging
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import openpyxl
 import os
 import hashlib
 import logging
-import threading
-import time
-import sys
 
 # مسیر فایل اکسل
 EXCEL_FILE = "data.xlsx"
@@ -27,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-logger = logging.getLogger(name)
+logger = logging.getLogger(__name__)
 
 # تابع برای خواندن داده‌ها از اکسل
 def load_data():
@@ -56,8 +62,7 @@ def save_data(data):
 
 # ساخت callback_data ایمن
 def generate_safe_callback_data(project_name):
-    hashed_name = hashlib.md5(project_name.encode()).hexdigest()[:10]
-    return hashed_name
+    return hashlib.md5(project_name.encode()).hexdigest()[:10]
 
 # ساخت کیبورد برای پروژه‌ها
 def build_keyboard(page=0, items_per_page=15):
@@ -104,14 +109,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
     for i, (project, users) in enumerate(data):
         if generate_safe_callback_data(project) == project_clicked:
-            if users:
-                users_list = users.split(", ")
-                if user not in users_list:
-                    users_list.append(user)
-                users = ", ".join(users_list)
-            else:
-                users = user
-            data[i] = (project, users)
+            users_list = set(users.split(", ")) if users else set()
+            users_list.add(user)
+            data[i] = (project, ", ".join(users_list))
             break
 
     save_data(data)
@@ -127,17 +127,6 @@ async def fasly(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update, context):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
-# تابع برای ریستارت ربات
-def restart_bot():
-    print("ریستارت ربات...")
-    os.execl(sys.executable, sys.executable, *sys.argv)
-
-# زمان‌بندی ریستارت هر 2 ساعت
-def schedule_restart():
-    while True:
-        time.sleep(5 * 60)  # 10 دقیقه
-        restart_bot()
-
 # تابع اصلی برای اجرای ربات
 def main():
     # ساخت برنامه
@@ -147,11 +136,21 @@ def main():
     app.add_handler(CallbackQueryHandler(button))
     app.add_error_handler(error_handler)
 
-    # اجرای نخ زمان‌بندی ریستارت
-    threading.Thread(target=schedule_restart, daemon=True).start()
-
-    print("ربات با موفقیت اجرا شد.")
+    logger.info("ربات با موفقیت اجرا شد.")
     app.run_polling(poll_interval=1.0)
 
-if name == "main":
+if __name__ == "__main__":
     main()
+
+# ایجاد برنامه Flask
+app = Flask(__name__)
+
+@app.route("/runbot", methods=["GET"])
+def run_bot():
+    """اجرای ربات تلگرام"""
+    thread = Thread(target=main)  # اجرای ربات در یک ترد جدید
+    thread.start()
+    return "Bot script is running!", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
